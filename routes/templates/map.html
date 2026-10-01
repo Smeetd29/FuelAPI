@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fuel Route Optimizer - Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.85);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.35);
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.3);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    #map {
+      flex: 1;
+      height: 100vh;
+      z-index: 1;
+      background: #0b1120;
+    }
+
+    /* Floating Header Overlay */
+    .top-bar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .brand-card {
+      pointer-events: auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      padding: 12px 20px;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* Summary Bar */
+    .summary-card {
+      pointer-events: auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      padding: 10px 18px;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stat-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .stat-val.highlight {
+      color: #38bdf8;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .stat-val.cost {
+      color: #10b981;
+      text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--card-border);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 360px;
+      height: calc(100vh - 100px);
+      position: absolute;
+      top: 84px;
+      left: 16px;
+      z-index: 1000;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .route-endpoints {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .endpoint-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+
+    .endpoint-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .badge-start {
+      background: #10b981;
+      color: #064e3b;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .badge-finish {
+      background: #ef4444;
+      color: #450a0a;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    }
+
+    .endpoint-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+    }
+
+    .sidebar-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+
+    .stops-section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin: 8px 6px 12px;
+    }
+
+    .stop-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .stop-card:hover {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .stop-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .stop-number {
+      background: linear-gradient(135deg, #0284c7, #0284c7);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stop-price {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .stop-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+      color: #f1f5f9;
+      line-height: 1.3;
+    }
+
+    .stop-location {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .stop-details-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 8px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .mini-stat-lbl {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .mini-stat-val {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .no-stops-card {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--text-muted);
+    }
+
+    .no-stops-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    /* Custom Leaflet Marker Pins */
+    .custom-pin {
+      width: 32px;
+      height: 32px;
+      border-radius: 50% 50% 50% 0;
+      background: #0284c7;
+      position: absolute;
+      transform: rotate(-43deg);
+      left: 50%;
+      top: 50%;
+      margin: -20px 0 0 -16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      border: 2px solid #fff;
+    }
+
+    .custom-pin span {
+      transform: rotate(43deg);
+      color: #fff;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .start-pin {
+      background: #10b981;
+    }
+
+    .finish-pin {
+      background: #ef4444;
+    }
+
+    /* Popup Styling */
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .popup-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+      color: #38bdf8;
+    }
+
+    .popup-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .popup-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Error Banner */
+    .error-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2000;
+      background: rgba(239, 68, 68, 0.95);
+      color: #fff;
+      padding: 24px 32px;
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      text-align: center;
+      max-width: 500px;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        display: none;
+      }
+
+      .summary-card {
+        gap: 12px;
+      }
+
+      .stat-val {
+        font-size: 0.95rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top Floating Bar -->
+  <div class="top-bar">
+    <div class="brand-card">
+      <div class="brand-icon">⛽</div>
+      <div>
+        <div class="brand-title">Fuel Route Optimizer</div>
+        <div class="brand-subtitle">Optimal Fueling & Route Map</div>
+      </div>
+    </div>
+
+    {% if not error %}
+    <div class="summary-card">
+      <div class="stat-item">
+        <span class="stat-label">Total Distance</span>
+        <span class="stat-val highlight">{{ distance_miles }} mi</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">Duration</span>
+        <span class="stat-val">{{ duration_str }}</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">Fuel Cost</span>
+        <span class="stat-val cost">{{ total_cost }}</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">Stops</span>
+        <span class="stat-val">{{ stops_count }}</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">Purchased</span>
+        <span class="stat-val">{{ gallons_purchased }} gal</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if error %}
+  <div class="error-banner">
+    <h2 style="margin-bottom: 8px;">Routing Error</h2>
+    <p>{{ error }}</p>
+    <div style="margin-top: 16px;">
+      <a href="javascript:history.back()" style="color: #fff; text-decoration: underline; font-weight: 600;">Go Back</a>
+    </div>
+  </div>
+  {% else %}
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="route-endpoints">
+        <div class="endpoint-row">
+          <span class="endpoint-badge badge-start">A</span>
+          <span class="endpoint-text" title="{{ start_display }}">{{ start }}</span>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-badge badge-finish">B</span>
+          <span class="endpoint-text" title="{{ finish_display }}">{{ finish }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-body">
+      <div class="stops-section-title">
+        Optimal Fuel Stops ({{ stops_count }})
+      </div>
+
+      {% if fuel_stops %}
+      {% for stop in fuel_stops %}
+      <div class="stop-card" onclick="focusStop({{ stop.latitude }}, {{ stop.longitude }}, {{ stop.number }})">
+        <div class="stop-card-header">
+          <span class="stop-number">Stop #{{ stop.number }}</span>
+          <span class="stop-price">${{ stop.price_per_gallon }}/gal</span>
+        </div>
+        <div class="stop-name">{{ stop.name }}</div>
+        <div class="stop-location">{{ stop.city }}, {{ stop.state }} • OPIS: {{ stop.opis_id }}</div>
+        <div class="stop-details-grid">
+          <div>
+            <div class="mini-stat-lbl">Mile</div>
+            <div class="mini-stat-val">{{ stop.mile_marker }} mi</div>
+          </div>
+          <div>
+            <div class="mini-stat-lbl">Purchase</div>
+            <div class="mini-stat-val">{{ stop.gallons_purchased }} gal</div>
+          </div>
+          <div>
+            <div class="mini-stat-lbl">Cost</div>
+            <div class="mini-stat-val" style="color: #10b981;">${{ stop.cost }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="no-stops-card">
+        <div class="no-stops-icon">🚗💨</div>
+        <p><strong>Direct Route!</strong></p>
+        <p style="font-size: 0.8rem; margin-top: 4px;">Route is within vehicle range (500 miles). No stops required.</p>
+      </div>
+      {% endif %}
+    </div>
+  </aside>
+  {% endif %}
+
+  <!-- Leaflet Map Container -->
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    {% if not error %}
+    const geometryCoords = {{ geometry_json| safe }};
+    const stopsData = {{ stops_json| safe }};
+    const startCoords = {{ start_coords| safe }};
+    const finishCoords = {{ finish_coords| safe }};
+
+    // Initialize map
+    const map = L.map('map', {
+      zoomControl: false
+    });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // French OSM mirror tiles (free, no API key required)
+    const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Tiles: openstreetmap.fr'
+    }).addTo(map);
+
+    const osmHOT = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Humanitarian'
+    });
+
+    L.control.layers({
+      "OpenStreetMap FR": osmStandard,
+      "Humanitarian OSM": osmHOT
+    }, null, { position: 'bottomright' }).addTo(map);
+
+
+    // Flip [lon, lat] -> [lat, lon] for Leaflet
+    const latLngs = geometryCoords.map(c => [c[1], c[0]]);
+
+    // Glow underlay polyline
+    const glowLine = L.polyline(latLngs, {
+      color: '#0284c7',
+      weight: 8,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // Main route polyline
+    const routeLine = L.polyline(latLngs, {
+      color: '#0ea5e9',
+      weight: 4,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // Custom marker pin factory
+    function createPin(label, className) {
+      return L.divIcon({
+        className: 'custom-pin-wrapper',
+        html: `<div class="custom-pin ${className}"><span>${label}</span></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      });
+    }
+
+    // Start & Finish Markers
+    L.marker(startCoords, { icon: createPin('A', 'start-pin') })
+      .addTo(map)
+      .bindPopup(`<div class="popup-title">Start: {{ start }}</div><div class="popup-sub">{{ start_display }}</div>`);
+
+    L.marker(finishCoords, { icon: createPin('B', 'finish-pin') })
+      .addTo(map)
+      .bindPopup(`<div class="popup-title">Finish: {{ finish }}</div><div class="popup-sub">{{ finish_display }}</div>`);
+
+    // Fuel Stop Markers
+    const stopMarkers = {};
+    stopsData.forEach(stop => {
+      const marker = L.marker([stop.latitude, stop.longitude], {
+        icon: createPin(stop.number, '')
+      }).addTo(map);
+
+      const popupContent = `
+        <div class="popup-title">${stop.name}</div>
+        <div class="popup-sub">${stop.city}, ${stop.state} ${stop.address ? '• ' + stop.address : ''}</div>
+        <div class="popup-row"><span>OPIS ID:</span><strong>${stop.opis_id}</strong></div>
+        <div class="popup-row"><span>Retail Price:</span><strong>$${stop.price_per_gallon} / gal</strong></div>
+        <div class="popup-row"><span>Mile Marker:</span><strong>${stop.mile_marker} mi</strong></div>
+        <div class="popup-row"><span>Purchased:</span><strong>${stop.gallons_purchased} gal</strong></div>
+        <div class="popup-row"><span>Cost:</span><strong style="color: #10b981;">$${stop.cost}</strong></div>
+      `;
+      marker.bindPopup(popupContent);
+      stopMarkers[stop.number] = marker;
+    });
+
+    // Fit map bounds to polyline with padding
+    map.fitBounds(routeLine.getBounds(), {
+      padding: [80, 80]
+    });
+
+    // Focus stop function
+    window.focusStop = function (lat, lon, stopNumber) {
+      map.setView([lat, lon], 12, { animate: true });
+      if (stopMarkers[stopNumber]) {
+        stopMarkers[stopNumber].openPopup();
+      }
+    };
+    {% endif %}
+  </script>
+</body>
+
+</html>
